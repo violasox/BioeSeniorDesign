@@ -1,4 +1,6 @@
 import Tkinter as tk
+import serial
+import time
 
 class App:
     def __init__(self, master):
@@ -37,14 +39,27 @@ class App:
         self.statusCanvas.create_rectangle(0, 0, self.canvasDim[0], self.canvasDim[1], fill="green")
         self.statusCanvas.create_text(0, 0, text="Cannula in")
 
+        self.teensy = serial.Serial('/dev/ttyACM0', 115200)
+        print("Established connection with Teensy")
+
     def getNewData(self):
+        # Send any character to get data from teensy
+        self.teensy.write('a')
+        orientString = self.teensy.readline().split('\t')
+        yaw = float(orientString[1])
+        pitch = float(orientString[2])
+        roll = float(orientString[3])
+        accelString = self.teensy.readline().split('\t')
+        xAccel = float(accelString[1])
+        yAccel = float(accelString[2])
+        zAccel = float(accelString[3])
         # Dummy values
-        pitch = 5.22
-        yaw = 3.18
-        roll = -5.32
-        xAccel = 2.00
-        yAccel = 4.44
-        zAccel = 0.00
+        # pitch = 5.22
+        # yaw = 3.18
+        # roll = -5.32
+        # xAccel = 2.00
+        # yAccel = 4.44
+        # zAccel = 0.00
         self.pitchVal.set("Pitch: {0}".format(pitch))
         self.yawVal.set("Yaw: {0}".format(yaw))
         self.rollVal.set("Roll: {0}".format(roll))
