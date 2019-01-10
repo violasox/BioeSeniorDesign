@@ -10,7 +10,7 @@ class App:
         self.updateRate = 500
         self.canvasDim = (800, 600)
         self.calibrationThreshold = 50
-        self.alarmThreshold = 500
+        self.alarmThreshold = 1000
         self.fontSize = 40
 
         # Variable initialization (don't touch)
