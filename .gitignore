@@ -1,0 +1,5 @@
+// Directory for the virtual environment
+virtual/
+
+// Environment variables
+.env
