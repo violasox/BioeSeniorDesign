@@ -1,11 +1,7 @@
-# Completed GUI with formatting fixed
-# Includes text messaging
-# v5 includes GPIO incorporation
-
 ######## TO DO ##############
-# - Need to run run.py from virtual environment before running this script
-# - Close ssh connection??
-# NEED TO add multiprocessing to update GUI properly when waiting for an input
+# - Need to run run_log.py from virtual environment before running this script
+# - Close ssh connection when closing GUI window
+# - Turn off buzzer when closing GUI window
 
 
 import tkinter
@@ -31,7 +27,7 @@ class App:
         # Parameters
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
         self.log_path = os.path.join(self.dir_path,'app.log')
-        self.canvasDim = (480,320)
+        self.canvasDim = (800,450)
         self.alarmThreshold = 2.0
         self._job = None
         self.red = '#CE0000'
@@ -47,6 +43,7 @@ class App:
         GPIO.setwarnings(False)
         self.BUZZER = 26
         GPIO.setup(self.BUZZER,GPIO.OUT)
+        GPIO.output(self.BUZZER,0)
         
         self.ROW1 = 23
         self.ROW2 = 18
@@ -78,7 +75,8 @@ class App:
         #self.phoneNum = '7342337513'
     
         #self.setPressurePool = ThreadPool(processes=1)
-    
+        
+        self.activationButtonText = "Activate Alarm"
         self.setPressure = ""
         self.newPressureDigit = ""
         self.currentPressure = DoubleVar()
@@ -94,45 +92,69 @@ class App:
         # On every page
         self.B_home = Button(top, text="Home", bd=5, relief=RAISED,padx=15,pady=15,command=self.homePage)
         self.B_home.config(font=("Helvetica", 15))
-        self.L_oxydasBig = Label(top, text="Oxy-Das", fg = self.blue, font=("Helvetica", 60, "bold italic"))
+        self.B_info = Button(top, text = "i",bd=5, relief=RAISED,padx=15,pady=10,command=self.infoPage)
+        self.B_info.config(font=("Times", 25, "bold"))
+        self.L_oxydasBig = Label(top, text="Oxy-Das", fg = self.blue, bg = "white",font=("Helvetica", 60, "bold italic"))
         self.L_oxydas = Label(top, text="Oxy-Das", fg = self.blue, font=("Helvetica", 30, "bold italic"))
 
         # Home page
         self.B_calibrate = Button(top, text="Calibrate", bd=5, relief=RAISED, padx=15,pady=15,command=self.calibrationPage1)
         self.B_calibrate.config(font=("Helvetica", 20))
-        self.B_monitor = Button(top, text="Start Monitoring", bd=5, relief=RAISED, padx=15,pady=15,wraplength=120,command=self.enterPhoneNumPage)
+        self.B_monitor = Button(top, text="Start Monitoring", bd=5, relief=RAISED, padx=15,pady=15,wraplength=130,command=self.pressureDisplayPage)
         self.B_monitor.config(font=("Helvetica", 20))
+        
+        # Info page
+        self.L_infoSetPressure = Label(top, text = "Set Pressure:", font=("Helvetica", 20))
+        self.L_infoSetPressureVal = Label(top, text = self.setPressure, font=("Helvetica", 20))
+        self.B_infoSetPressureEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.pressureReset)
+        self.B_infoSetPressureEdit.config(font=("Helvetica", 15))
 
+        self.L_infoAlertThreshold = Label(top, text = "Alert Threshold:", font=("Helvetica", 20))
+        self.L_infoAlertThresholdVal = Label(top, text = str(self.alarmThreshold), font=("Helvetica", 20))
+        self.B_infoAlertThresholdEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.infoPage)
+        self.B_infoAlertThresholdEdit.config(font=("Helvetica", 15))
+
+        self.L_infoPhoneNum = Label(top, text = "Phone Number:", font=("Helvetica", 20))
+        self.L_infoPhoneNumVal = Label(top, text = self.phoneNum, font=("Helvetica", 20))
+        self.B_infoPhoneNumEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.phoneNumReset)
+        self.B_infoPhoneNumEdit.config(font=("Helvetica", 15))
+        
         # Enter phone number
-        self.L_enterPhoneNum = Label(top, text = "Enter Phone Number", font=("Helvetica", 20))
-        self.L_enteredPhoneNum = Label(top, text = self.phoneNum, font=("Helvetica", 20))
+        self.L_enterPhoneNum = Label(top, text = "Enter Phone Number", bg="white", font=("Helvetica", 30))
+        self.L_enteredPhoneNum = Label(top, text = self.phoneNum, bg="white", font=("Helvetica", 30))
         self.B_enterPhoneNum = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.pressureDisplayPage)
-        self.B_enterPhoneNum.config(font=("Helvetica", 15))
+        self.B_enterPhoneNum.config(font=("Helvetica", 25))
 
         # Pressure Display Page
-        self.L_bcpapPressure = Label(top, text = "Bubble CPAP Pressure", font=("Helvetica", 20))
+        self.L_bcpapPressure = Label(top, text = "Bubble CPAP Pressure", font=("Helvetica", 30))
         self.L_units = Label(top, text = "cm H2O", font=("Helvetica", 20))
+        self.B_activate = Button(top, text = self.activationButtonText,bd=5, relief=RAISED, padx=15,pady=5,command=self.alarmActivation);
+        self.B_activate.config(font=("Helvetica", 15))
         #self.L_cannulaOut = Label(top, text = "Cannula Out!")
         #self.L_highPressure = Label(top, text = "High Pressure!")
 
         # Calibration Page 1
-        self.L_pressureSet = Label(top, text = "1. Enter pressure set in bubble CPAP system", font=("Helvetica", 20))
-        self.L_pressureSetVal = Label(top, text=self.setPressure, font=("Helvetica", 20))
-        self.B_pressureSet = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationLow)
+        self.L_pressureSet = Label(top, text = "Enter pressure set in bubble CPAP system", bg="white",font=("Helvetica", 25))
+        self.L_pressureSetVal = Label(top, text=self.setPressure, bg="white",font=("Helvetica", 40))
+        self.B_pressureSet = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationSet)
         self.B_pressureSet.config(font=("Helvetica", 15))
 
         # Test Calibration
-        self.L_test = Label(top, text = "Test device function:",font=("Helvetica", 15))
-        self.C_test = Canvas(top,width=self.canvasDim[0]-20,height=80,)
+        self.C_test = Canvas(top,width=self.canvasDim[0]-20,height=140)
         self.C_test.config(bg=self.gray)
-
+        
+        # Test Calibration Set
+        self.L_testSet = Label(top, text = "Test device function\n\n 1. Confirm correct pressure display.",bg=self.gray,wraplength=450,font=("Helvetica", 15))
+        self.B_testSet = Button(top, text = "Confirm",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationLow)
+        self.B_testSet.config(font=("Helvetica", 15))
+        
         # Test Calibration Low
-        self.L_testLow = Label(top, text = "2. Decrease the pressure and confirm appropriate device response.",bg=self.gray,wraplength=250,font=("Helvetica", 15))
+        self.L_testLow = Label(top, text = "Test device function\n\n 2. Decrease the pressure and confirm appropriate device response.",bg=self.gray,wraplength=450,font=("Helvetica", 15))
         self.B_testLow = Button(top, text = "Confirm",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationHigh)
         self.B_testLow.config(font=("Helvetica", 15))
 
         # Test Calibration High
-        self.L_testHigh = Label(top, text = "3. Increase the pressure and confirm appropriate device response.",bg=self.gray,wraplength=250,font=("Helvetica", 15))
+        self.L_testHigh = Label(top, text = "Test device function\n\n 3. Increase the pressure and confirm appropriate device response.",bg=self.gray,wraplength=450,font=("Helvetica", 15))
         self.B_testHigh = Button(top, text = "Confirm",bd=5, relief=RAISED, padx=15,pady=5,command=self.homePage)
         self.B_testHigh.config(font=("Helvetica", 15))
 
@@ -178,12 +200,15 @@ class App:
         #self.command = "serveo.net"
         self.ssh = subprocess.Popen([self.command], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         #print(self.ssh.communicate())
-
-        self.B_home.grid(row=0,column=0,padx=10,pady=10,sticky=NW)
-        self.L_oxydasBig.grid(row=1,padx=110,pady=25,sticky=N)
-        self.B_calibrate.grid(row=2,column=0,padx=70,sticky=W)
-        self.B_monitor.grid(row=2,column=0,padx=70,sticky=E)
         
+        self.top.configure(background = "white")
+        self.B_home.grid(row=0,column=0,padx=10,pady=10,sticky=NW)
+        self.B_info.grid(row=0,column=0,padx=10,pady=10,sticky=NE)
+        self.L_oxydasBig.grid(row=1,padx=230,pady=25,sticky=N)
+        self.B_calibrate.grid(row=2,column=0,padx=150,pady=25,sticky=W)
+        self.B_monitor.grid(row=2,column=0,padx=150,pady=25,sticky=E)
+        
+        self.alarmActivation = False
         self.startCalibration = False
         self.pressureIsSet = False
         self.startEnterPhoneNum = False
@@ -191,7 +216,7 @@ class App:
         
         self.textAcknowledged = False
         self.startIdleMode = False
-        self.idleModeDuration = 65
+        self.idleModeDuration = 60
         self.idleModeTimeStarted = 0
         self.idleModeTimeElapsed = 0
         
@@ -203,8 +228,41 @@ class App:
         #self.pressureGuiUpdate();
 
         #self._job = self.top.after(1000,self.pressureDisplayPage)
-
-
+    
+    def alarmActivation(self):
+        self.alarmActivation = not self.alarmActivation
+        if (self.alarmActivation is True):
+            self.activationButtonText = "Deactivate Alarm"
+            self.B_activate.config(text=self.activationButtonText)
+            self.B_activate.config(relief=SUNKEN)
+        else:
+            self.activationButtonText = "Activate Alarm"
+            self.B_activate.config(text=self.activationButtonText)
+            self.B_activate.config(relief=RAISED)
+        
+        #print(self.activationButtonText)
+        self.pressureDisplayPage()
+        
+    def pressureReset(self):
+        self.setPressure = ""
+        self.newPressureDigit = ""
+        self.L_pressureSetVal.config(text = self.setPressure)
+        
+        self.startCalibration = False
+        self.pressureIsSet = False
+        
+        self.calibrationPage1()
+    
+    def phoneNumReset(self):
+        self.phoneNum = ""
+        self.newPhoneDigit = ""
+        self.L_enteredPhoneNum.config(text = self.phoneNum)
+        
+        self.startEnterPhoneNum = False
+        self.phoneNumIsSet = False
+        
+        self.enterPhoneNumPage()
+    
     def getNewData(self):
         ## TO USE WITH COMPUITER FOR DEBUGGING ONLY
         #return random.uniform(1.0,10.0)
@@ -310,25 +368,50 @@ class App:
             widget.grid_remove()
         self.top.configure(background = "white")
         self.B_home.grid(row=0,column=0,padx=10,pady=10,sticky=NW)
+        self.B_info.grid(row=0,column=0,padx=10,pady=10,sticky=NE)
 
 
     def homePage(self):
         self.endProcess()
         self.clear()
-        self.L_oxydasBig.grid(row=1,padx=110,pady=25,sticky=N)
-        self.B_calibrate.grid(row=2,column=0,padx=70,sticky=W)
-        self.B_monitor.grid(row=2,column=0,padx=70,sticky=E)
+        self.L_oxydasBig.grid(row=1,padx=230,pady=25,sticky=N)
+        self.B_calibrate.grid(row=2,column=0,padx=150,pady=25,sticky=W)
+        self.B_monitor.grid(row=2,column=0,padx=150,pady=25,sticky=E)
+    
+    def infoPage(self):
+        self.endProcess()
+        self.clear()
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
+        self.L_oxydas.config(fg=self.blue,bg="white")
+
+        self.L_infoSetPressure.grid(row=1,padx=20,pady=20,sticky=W)
+        self.L_infoSetPressure.config(bg="white")
+        self.L_infoSetPressureVal.grid(row=1,pady=20)
+        self.L_infoSetPressureVal.config(text = self.setPressure,bg="white")
+        self.B_infoSetPressureEdit.grid(row=1,padx=20,pady=20,sticky=E)
+
+        self.L_infoAlertThreshold.grid(row=2,padx=20,pady=20,sticky=W)
+        self.L_infoAlertThreshold.config(bg="white")
+        self.L_infoAlertThresholdVal.grid(row=2,pady=20)
+        self.L_infoAlertThresholdVal.config(bg="white")
+        self.B_infoAlertThresholdEdit.grid(row=2,padx=20,pady=20,sticky=E)
+
+        self.L_infoPhoneNum.grid(row=3,padx=20,pady=20,sticky=W)
+        self.L_infoPhoneNum.config(bg="white")
+        self.L_infoPhoneNumVal.grid(row=3,pady=20)
+        self.L_infoPhoneNumVal.config(text=self.phoneNum,bg="white")
+        self.B_infoPhoneNumEdit.grid(row=3,padx=20,pady=20,sticky=E)
     
     def enterPhoneNumPage(self):
         self.endProcess()
         self.clear()
-        self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
         self.L_oxydas.config(fg=self.blue,bg="white")
 
-        self.L_enterPhoneNum.grid(row=1,pady=20)
-        #self.L_enteredPhoneNum.grid(row=2)
+        self.L_enterPhoneNum.grid(row=1,pady=40)
+        self.L_enteredPhoneNum.grid(row=2)
         #print("showing phone num")
-        self.B_enterPhoneNum.grid(row=3,pady=20)
+        self.B_enterPhoneNum.grid(row=3,pady=40)
         
         # If phone number has not been entered yet
         if (not self.phoneNumIsSet):
@@ -351,7 +434,7 @@ class App:
             self.L_enteredPhoneNum.config(text = self.phoneNum)
             self.L_enteredPhoneNum.grid(row=2)
         
-        self._job = self.top.after(1000,self.enterPhoneNumPage)
+        self._job = self.top.after(300,self.enterPhoneNumPage)
 
     def getStatus(self, currentPressure, lowPressureLim, highPressureLim):
         # Cannula in
@@ -408,56 +491,60 @@ class App:
             L_status.config(bg=self.green)
         # when cannula comes out
         elif (status == 2):
-            # check if the nurse acknowledged the message only if not already in idle mode
-            if (self.startIdleMode is False):
-                self.checkAlertAcknowledged()
-            print("text acknowledged is ", str(self.textAcknowledged))
-            # if nurse hasn't acknowledged the message
-            if (self.textAcknowledged is False):
-                self.idleModeTimeStarted = 0
-                self.idleModeTimeElapsed = 0
-                print("Text not seen yet, need to start buzzing")
-                # start buzzing
-                BuzzThread = Thread(target=self.buzz)
-                BuzzThread.start()
-                # if a text hasn't been sent or it has been a minute, send a text
-                if (self.timeSent == 0 or self.timeElapsed > self.sendTextDelay):
-                    print("Text sent")
-                    self.sendText()
-                    self.timeSent = time.time();
+            if (self.alarmActivation is True):
+                # check if the nurse acknowledged the message only if not already in idle mode
+                if (self.startIdleMode is False):
+                    self.checkAlertAcknowledged()
+                    print("text acknowledged is ", str(self.textAcknowledged))
+                # if nurse hasn't acknowledged the message
+                if (self.textAcknowledged is False):
+                    self.idleModeTimeStarted = 0
+                    self.idleModeTimeElapsed = 0
+                    print("Text not seen yet, need to start buzzing")
+                
+                    # start buzzing
+                    BuzzThread = Thread(target=self.buzz)
+                    BuzzThread.start()
+                    # if a text hasn't been sent or it has been a minute, send a text
+                    if (self.timeSent == 0 or self.timeElapsed > self.sendTextDelay):
+                        print("Text sent")
+                        self.sendText()
+                        self.timeSent = time.time();
+                    else:
+                        print("Passed")
+                        pass
+                # if a nurse has acknowledged the message
                 else:
-                    #print("Passed")
-                    pass
-            # if a nurse has acknowledged the message
+                    #print("Text has been seen")
+                    # go into idle mode if it hasn't already happened
+                    if (self.idleModeTimeStarted == 0):
+                        #self.startIdleMode = True
+                        print("STAAAAAART")
+                        self.startIdleMode = True
+                        self.textAcknowledged = True
+                        self.idleModeTimeStarted = time.time()
+                    elif (self.idleModeTimeElapsed < self.idleModeDuration):
+                        print("In IDLE MODE: ", str(self.idleModeTimeElapsed))
+                    elif (self.idleModeTimeElapsed >= self.idleModeDuration):
+                        print("Idle mode complete")
+                        self.startIdleMode = False
+                        self.textAcknowledged = False
+                        #self.idleModeTimeStarted = 0;
+                    
+                    
+                    #self.idleModeDuration = 30
+                    #self.idleModeTimeStarted = 0
+                    #self.idleModeTimeElapsed = 0
+                    #if (self.startIdleMode is False):
+                    #    print('start idle mode is', self.startIdleMode)
+                    #    IdleThread = Thread(target=self.enterIdleMode)
+                    #    IdleThread.start()
+                    ## if idle mode has already started, don't go into it again
+                    #else:
+                    #    print("IN IDLE MODE ", self.startIdleMode)
+                    #    pass
             else:
-                #print("Text has been seen")
-                # go into idle mode if it hasn't already happened
-                if (self.idleModeTimeStarted == 0):
-                    #self.startIdleMode = True
-                    print("STAAAAAART")
-                    self.startIdleMode = True
-                    self.textAcknowledged = True
-                    self.idleModeTimeStarted = time.time()
-                elif (self.idleModeTimeElapsed < self.idleModeDuration):
-                    print("In IDLE MODE: ", str(self.idleModeTimeElapsed))
-                elif (self.idleModeTimeElapsed >= self.idleModeDuration):
-                    print("Idle mode complete")
-                    self.startIdleMode = False
-                    self.textAcknowledged = False
-                    #self.idleModeTimeStarted = 0;
-                
-                
-                #self.idleModeDuration = 30
-                #self.idleModeTimeStarted = 0
-                #self.idleModeTimeElapsed = 0
-                #if (self.startIdleMode is False):
-                #    print('start idle mode is', self.startIdleMode)
-                #    IdleThread = Thread(target=self.enterIdleMode)
-                #    IdleThread.start()
-                ## if idle mode has already started, don't go into it again
-                #else:
-                #    print("IN IDLE MODE ", self.startIdleMode)
-                #    pass
+                pass
             for wid in myWidgets:
                 wid.config(bg=self.red)
             L_status = Label(top, text = "Low Pressure",font=("Helvetica", 30))
@@ -482,28 +569,29 @@ class App:
         envPhoneNum = "+1" + self.phoneNum
         ##print(type(envPhoneNum))
         #os.environ['RECV_NUMBER']=envPhoneNum
-        self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
-
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
+        self.B_activate.grid(row=4,pady=20)
+        
         self.pressureGuiUpdate();
 
-        self._job = self.top.after(1000,self.pressureDisplayPage)
+        self._job = self.top.after(500,self.pressureDisplayPage)
 
     def pressureGuiUpdateCalibration(self):
         self.currentPressure = self.getNewData()
         status = self.getStatus(self.currentPressure, self.lowPressureLim, self.highPressureLim)
 
-        L_bcpapPressure = Label(top, text = "Bubble CPAP Pressure", font=("Helvetica", 20))
+        L_bcpapPressure = Label(top, text = "Bubble CPAP Pressure", font=("Helvetica", 25))
         L_bcpapPressure.grid(row=1)
 
         if self.currentPressure >= 10.0:
             currentPressureFormatted = str(round(self.currentPressure))
         else:
             currentPressureFormatted = str(round(self.currentPressure,1))
-        L_currentPressure = Label(top, text = currentPressureFormatted,font=("Helvetica", 30))
-        L_currentPressure.grid(row=2,column=0,pady=5)
+        L_currentPressure = Label(top, text = currentPressureFormatted,font=("Helvetica", 40))
+        L_currentPressure.grid(row=2,column=0,pady=15)
 
         L_unitsCal = Label(top, text = "cm H2O", font=("Helvetica", 20))
-        L_unitsCal.grid(row=2,column=0,padx=120,pady=8,sticky=SE)
+        L_unitsCal.grid(row=2,column=0,padx=220,pady=18,sticky=SE)
 
         myWidgets = [self.top,self.L_oxydas,L_bcpapPressure,L_currentPressure,L_unitsCal];
 
@@ -525,26 +613,29 @@ class App:
 
         L_status.grid_remove()
         L_status.grid(row=3)
+    
 
     def calibrationPage1(self):
         self.endProcess()
         self.clear()
-        self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
         self.L_oxydas.config(bg="white")
         self.L_units.config(bg="white")
         
         self.L_pressureSet.grid(row=1, pady=20)
-        self.L_pressureSetVal.grid(row=2,column=0)
-        self.L_units.grid(row=2,column=0,padx=120,sticky=E)
+        self.L_pressureSetVal.grid(row=2,column=0,pady=40)
+        self.L_units.grid(row=2,column=0,padx=220,pady=45,sticky=E)
         self.B_pressureSet.grid(row=3,pady=30)
-        
+        #print("did this")
+
+           
         # If pressure has not been set yet
         if (not self.pressureIsSet):
             numDigits = len(self.setPressure)
             # Iteration 1
             if (not self.startCalibration):
                 self.startCalibration = True
-                print('Got here')
+                #print('Starting calibration')
             # Iteration 2 - until the first number is pressed
             elif (numDigits == 0):
                 self.newPressureDigit= self.numWriter()
@@ -552,7 +643,8 @@ class App:
                 self.L_pressureSetVal.config(text = self.setPressure)
                 if (self.newPressureDigit != "1"):
                     self.pressureIsSet = True
-                    print('Pressure is set!')
+                    self.pressureReset = False
+                    #print('Pressure is set!')
                 else:
                     pass
             # If first digit entered is 1, the second digit entered is only allowed to be 0
@@ -560,28 +652,40 @@ class App:
                 self.newPressureDigit = self.numWriter()
                 if (self.setPressure != "1" or self.newPressureDigit != "0"):
                     self.newPressureDigit = ""
-                    print("Only 0 allowed after 1")
+                    #print("Only 0 allowed after 1")
                 else:
                     self.pressureIsSet = True
                     self.setPressure = "{}{}".format(self.setPressure, self.newPressureDigit)
                     self.L_pressureSetVal.config(text = self.setPressure)
-                    print('Pressure is set!')
+                    self.pressureReset = False
+                    #print('Pressure is set!')
         else:
             pass
         
         self._job = self.top.after(1000, self.calibrationPage1)
         
-
-    def testCalibrationLow(self):
+    def testCalibrationSet(self):
         self.endProcess()
         self.clear()
-        self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
 
         self.pressureGuiUpdateCalibration();
 
         self.C_test.grid(row=4,sticky=S)
-        self.L_test.grid(row=4,padx=40,pady=30,sticky=NW)
-        self.L_testLow.grid(row=4,padx=40,pady=30,sticky=SW)
+        self.L_testSet.grid(row=4,padx=40,pady=50,sticky=SW)
+        self.B_testSet.grid(row=4,padx=50,pady=50,sticky=E)
+
+        self._job = self.top.after(1000,self.testCalibrationSet)
+    
+    def testCalibrationLow(self):
+        self.endProcess()
+        self.clear()
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
+
+        self.pressureGuiUpdateCalibration();
+
+        self.C_test.grid(row=4,pady=0,sticky=S)
+        self.L_testLow.grid(row=4,padx=40,pady=35,sticky=SW)
         self.B_testLow.grid(row=4,padx=50,pady=35,sticky=E)
 
         self._job = self.top.after(1000,self.testCalibrationLow)
@@ -589,20 +693,19 @@ class App:
     def testCalibrationHigh(self):
         self.endProcess()
         self.clear()
-        self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
 
         self.pressureGuiUpdateCalibration();
 
-        self.C_test.grid(row=4,sticky=S)
-        self.L_test.grid(row=4,padx=40,pady=30,sticky=NW)
-        self.L_testHigh.grid(row=4,padx=40,pady=30,sticky=SW)
+        self.C_test.grid(row=4,pady=0,sticky=S)
+        self.L_testHigh.grid(row=4,padx=40,pady=35,sticky=SW)
         self.B_testHigh.grid(row=4,padx=50,pady=35,sticky=E)
 
         self._job = self.top.after(1000,self.testCalibrationHigh)
 
 
 top = Tk()
-top.geometry("480x320")
+top.geometry("800x450")
 app = App(top)
 top.after(1000,app.getNewData)
 top.mainloop()
