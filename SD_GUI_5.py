@@ -1,8 +1,4 @@
-######## TO DO ##############
 # - Need to run run_log.py from virtual environment before running this script
-# - Close ssh connection when closing GUI window
-# - Turn off buzzer when closing GUI window
-
 
 import tkinter
 from tkinter import *
@@ -16,7 +12,7 @@ from dotenv import Dotenv
 import subprocess
 import sys
 from threading import Thread
-#from multiprocessing.pool import ThreadPool
+
 
 import RPi.GPIO as GPIO
 
@@ -66,29 +62,21 @@ class App:
             GPIO.setup(self.ROW[i], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         # Variable initialization
-
-        # Dummy values
-        #self.setPressure = '5'
-        #self.currentPressure = 5
-        #self.highPressureLim = 7
-        #self.lowPressureLim = 3
-        #self.phoneNum = '7342337513'
-    
-        #self.setPressurePool = ThreadPool(processes=1)
-        
         self.activationButtonText = "Activate Alarm"
         self.setPressure = ""
+        self.setPressureNum = 0
         self.newPressureDigit = ""
+        self.setFlowRate = ""
+        self.setFlowRateNum = 1
+        self.newFlowRateDigit = ""
         self.currentPressure = DoubleVar()
-        self.highPressureLim = self.currentPressure.get() + self.alarmThreshold
-        self.lowPressureLim = self.currentPressure.get() - self.alarmThreshold
+        self.highPressureLim = self.setPressureNum + self.alarmThreshold
+        self.lowPressureLim = 1.0
+        self.offset = 0.0
         self.phoneNum = ""
         self.newPhoneDigit = ""
 
-
         # widgets
-        #self.B_clear = Button(top, text="Clear", bd=5, relief=RAISED, command=self.clear)
-
         # On every page
         self.B_home = Button(top, text="Home", bd=5, relief=RAISED,padx=15,pady=15,command=self.homePage)
         self.B_home.config(font=("Helvetica", 15))
@@ -109,10 +97,10 @@ class App:
         self.B_infoSetPressureEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.pressureReset)
         self.B_infoSetPressureEdit.config(font=("Helvetica", 15))
 
-        self.L_infoAlertThreshold = Label(top, text = "Alert Threshold:", font=("Helvetica", 20))
-        self.L_infoAlertThresholdVal = Label(top, text = str(self.alarmThreshold), font=("Helvetica", 20))
-        self.B_infoAlertThresholdEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.infoPage)
-        self.B_infoAlertThresholdEdit.config(font=("Helvetica", 15))
+        self.L_infoSetFlowRate = Label(top, text = "Oxygen Flow Rate:", font=("Helvetica", 20))
+        self.L_infoSetFlowRateVal = Label(top, text = self.setFlowRate, font=("Helvetica", 20))
+        self.B_infoSetFlowRateEdit = Button(top,text="Edit",relief=RAISED, padx=15,pady=15,command=self.flowRateReset)
+        self.B_infoSetFlowRateEdit.config(font=("Helvetica", 15))
 
         self.L_infoPhoneNum = Label(top, text = "Phone Number:", font=("Helvetica", 20))
         self.L_infoPhoneNumVal = Label(top, text = self.phoneNum, font=("Helvetica", 20))
@@ -127,17 +115,22 @@ class App:
 
         # Pressure Display Page
         self.L_bcpapPressure = Label(top, text = "Bubble CPAP Pressure", font=("Helvetica", 30))
-        self.L_units = Label(top, text = "cm H2O", font=("Helvetica", 20))
+        self.L_pressureUnits = Label(top, text = "cm H2O", font=("Helvetica", 20))
         self.B_activate = Button(top, text = self.activationButtonText,bd=5, relief=RAISED, padx=15,pady=5,command=self.alarmActivation);
         self.B_activate.config(font=("Helvetica", 15))
-        #self.L_cannulaOut = Label(top, text = "Cannula Out!")
-        #self.L_highPressure = Label(top, text = "High Pressure!")
 
-        # Calibration Page 1
+        # Calibration Page 1 - CPAP pressure
         self.L_pressureSet = Label(top, text = "Enter pressure set in bubble CPAP system", bg="white",font=("Helvetica", 25))
         self.L_pressureSetVal = Label(top, text=self.setPressure, bg="white",font=("Helvetica", 40))
-        self.B_pressureSet = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationSet)
+        self.B_pressureSet = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.calibrationPage2)
         self.B_pressureSet.config(font=("Helvetica", 15))
+        
+        # Calibration Page 2 - air flow rate
+        self.L_flowRateSet = Label(top, text = "Enter oxygen flow rate", bg="white",font=("Helvetica", 25))
+        self.L_flowRateSetVal = Label(top, text=self.setFlowRate, bg="white",font=("Helvetica", 40))
+        self.L_flowRateUnits = Label(top,text = "L/min",font=("Helvetica", 20))
+        self.B_flowRateSet = Button(top, text = "Enter",bd=5, relief=RAISED, padx=15,pady=5,command=self.testCalibrationSet)
+        self.B_flowRateSet.config(font=("Helvetica", 15))
 
         # Test Calibration
         self.C_test = Canvas(top,width=self.canvasDim[0]-20,height=140)
@@ -184,50 +177,21 @@ class App:
         self.sendTextDelay = 30; # send text every __ seconds
         self.timeSent = 0;
         self.timeElapsed = 0;
-
-        ## MAIN PROGRAM
-        # Load the environment variables with Twilio account info and phone numbers
-        load_dotenv = Dotenv(os.path.join(os.path.dirname(os.path.realpath(__file__)),".env"))
-        os.environ.update(load_dotenv)
-        # Your Account Sid and Auth Token from twilio.com/console
-        self.account_sid = os.environ['TWILIO_SID']
-        self.auth_token = os.environ['TWILIO_AUTH']
-        self.client = Client(self.account_sid, self.auth_token)
-        self.command=os.environ['COMMAND']
-
-        #self.fwding_host = "sd16-oxydas-U9ms33M2g1h05p1t2l"#os.environ['FWDING_HOST']
-        #self.local_port = "5000"#os.environ['LOCAL_PORT']
-        #self.command = "serveo.net"
-        self.ssh = subprocess.Popen([self.command], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #print(self.ssh.communicate())
-        
-        self.top.configure(background = "white")
-        self.B_home.grid(row=0,column=0,padx=10,pady=10,sticky=NW)
-        self.B_info.grid(row=0,column=0,padx=10,pady=10,sticky=NE)
-        self.L_oxydasBig.grid(row=1,padx=230,pady=25,sticky=N)
-        self.B_calibrate.grid(row=2,column=0,padx=150,pady=25,sticky=W)
-        self.B_monitor.grid(row=2,column=0,padx=150,pady=25,sticky=E)
         
         self.alarmActivation = False
         self.startCalibration = False
         self.pressureIsSet = False
         self.startEnterPhoneNum = False
         self.phoneNumIsSet = False
+        self.flowRateIsSet = False
+        self.startEnterFlowRate = False
         
         self.textAcknowledged = False
         self.startIdleMode = False
         self.idleModeDuration = 60
         self.idleModeTimeStarted = 0
         self.idleModeTimeElapsed = 0
-        
-
-        # Uncomment for testing purposes
-        #self.clear()
-        #self.L_oxydas.grid(row=0,padx=175,pady=25,sticky=N)
-
-        #self.pressureGuiUpdate();
-
-        #self._job = self.top.after(1000,self.pressureDisplayPage)
+        self.refreshRate = 750
     
     def alarmActivation(self):
         self.alarmActivation = not self.alarmActivation
@@ -253,6 +217,16 @@ class App:
         
         self.calibrationPage1()
     
+    def flowRateReset(self):
+        self.setFlowRate = ""
+        self.newFlowRateDigit = ""
+        self.L_flowRateSetVal.config(text = self.setFlowRate)
+        
+        self.startEnterFlowRate = False
+        self.flowRateIsSet = False
+        
+        self.calibrationPage2()
+    
     def phoneNumReset(self):
         self.phoneNum = ""
         self.newPhoneDigit = ""
@@ -263,6 +237,46 @@ class App:
         
         self.enterPhoneNumPage()
     
+    def openCircuitPressureAdjust(self, airFlowrate):
+        if airFlowrate is 1:
+            self.offset = 0.0
+        elif airFlowrate is 2:
+            self.offset = 0.1
+        elif airFlowrate is 3:
+            self.offset = 0.3
+        elif airFlowrate is 4:
+            self.offset = 0.4
+        elif airFlowrate is 5:
+            self.offset = 0.6
+        elif airFlowrate is 6:
+            self.offset = 0.8
+        elif airFlowrate is 7:
+            self.offset = 1.1
+        elif airFlowrate is 8:
+            self.offset = 1.5
+        elif airFlowrate is 9:
+            self.offset = 1.9
+        elif airFlowrate is 10:
+            self.offset = 2.3
+    
+    def setLowPressureAlertThreshold(self, cpapPressure):
+        if cpapPressure <= 3:
+            self.lowPressureLim = 1.0
+        elif cpapPressure is 4:
+            self.lowPressureLim = 1.8
+        elif cpapPressure is 5:
+            self.lowPressureLim = 2.5
+        elif cpapPressure is 6:
+            self.lowPressureLim = 3.3
+        elif cpapPressure is 7:
+            self.lowPressureLim = 4.0
+        elif cpapPressure is 8:
+            self.lowPressureLim = 4.8
+        elif cpapPressure is 9:
+            self.lowPressureLim = 5.5
+        elif cpapPressure is 10:
+            self.lowPressureLim = 6.3
+    
     def getNewData(self):
         ## TO USE WITH COMPUITER FOR DEBUGGING ONLY
         #return random.uniform(1.0,10.0)
@@ -272,7 +286,9 @@ class App:
         curPressureV = (self.maxV*curPressureTicks) / self.numTicks;
         conversionV2P = (self.maxPressure - self.zeroPressure)/(self.maxPressureV - self.zeroPressureV);
         curPressure = (curPressureV-self.zeroPressureV)*conversionV2P;
-        return curPressure
+        curPressureCorrected = curPressure - self.offset
+        
+        return curPressureCorrected
 
     # Credit to Adafruit for this function
     # read SPI data from MCP3008 chip, 8 possible adc's (0 thru 7)
@@ -390,11 +406,11 @@ class App:
         self.L_infoSetPressureVal.config(text = self.setPressure,bg="white")
         self.B_infoSetPressureEdit.grid(row=1,padx=20,pady=20,sticky=E)
 
-        self.L_infoAlertThreshold.grid(row=2,padx=20,pady=20,sticky=W)
-        self.L_infoAlertThreshold.config(bg="white")
-        self.L_infoAlertThresholdVal.grid(row=2,pady=20)
-        self.L_infoAlertThresholdVal.config(bg="white")
-        self.B_infoAlertThresholdEdit.grid(row=2,padx=20,pady=20,sticky=E)
+        self.L_infoSetFlowRate.grid(row=2,padx=20,pady=20,sticky=W)
+        self.L_infoSetFlowRate.config(bg="white")
+        self.L_infoSetFlowRateVal.grid(row=2,pady=20)
+        self.L_infoSetFlowRateVal.config(text=self.setFlowRate,bg="white")
+        self.B_infoSetFlowRateEdit.grid(row=2,padx=20,pady=20,sticky=E)
 
         self.L_infoPhoneNum.grid(row=3,padx=20,pady=20,sticky=W)
         self.L_infoPhoneNum.config(bg="white")
@@ -439,12 +455,12 @@ class App:
     def getStatus(self, currentPressure, lowPressureLim, highPressureLim):
         # Cannula in
         if currentPressure > lowPressureLim and currentPressure < highPressureLim:
-            return 1
+            return 0
         # Cannula out
         elif currentPressure < lowPressureLim:
-            return 0
+            return 1
         # High pressure
-        else:
+        elif currentPressure > highPressureLim:
             return 2
 
     def sendText(self):
@@ -478,40 +494,40 @@ class App:
         L_currentPressure = Label(top, text = currentPressureFormatted,font=("Helvetica", 85))
         L_currentPressure.grid(row=2,column=0,pady=10)
 
-        self.L_units.grid(row=2,column=0,padx=85,pady=25,sticky=SE)
+        self.L_pressureUnits.grid(row=2,column=0,padx=85,pady=25,sticky=SE)
 
-        myWidgets = [self.top,self.L_oxydas,self.L_bcpapPressure,L_currentPressure,self.L_units];
+        myWidgets = [self.top,self.L_oxydas,self.L_bcpapPressure,L_currentPressure,self.L_pressureUnits];
 
         #print(self.timeElapsed)
 
-        if (status == 1):
+        if (status == 0):
             for wid in myWidgets:
                 wid.config(bg=self.green)
             L_status = Label(top, text = "Cannula In",font=("Helvetica", 30))
             L_status.config(bg=self.green)
         # when cannula comes out
-        elif (status == 2):
+        elif (status == 1):
             if (self.alarmActivation is True):
                 # check if the nurse acknowledged the message only if not already in idle mode
                 if (self.startIdleMode is False):
                     self.checkAlertAcknowledged()
-                    print("text acknowledged is ", str(self.textAcknowledged))
+                    #print("text acknowledged is ", str(self.textAcknowledged))
                 # if nurse hasn't acknowledged the message
                 if (self.textAcknowledged is False):
                     self.idleModeTimeStarted = 0
                     self.idleModeTimeElapsed = 0
-                    print("Text not seen yet, need to start buzzing")
+                    #print("Text not seen yet, need to start buzzing")
                 
                     # start buzzing
                     BuzzThread = Thread(target=self.buzz)
                     BuzzThread.start()
                     # if a text hasn't been sent or it has been a minute, send a text
                     if (self.timeSent == 0 or self.timeElapsed > self.sendTextDelay):
-                        print("Text sent")
+                        #print("Text sent")
                         self.sendText()
                         self.timeSent = time.time();
                     else:
-                        print("Passed")
+                        #print("Passed")
                         pass
                 # if a nurse has acknowledged the message
                 else:
@@ -519,14 +535,15 @@ class App:
                     # go into idle mode if it hasn't already happened
                     if (self.idleModeTimeStarted == 0):
                         #self.startIdleMode = True
-                        print("STAAAAAART")
+                        #print("STAAAAAART")
                         self.startIdleMode = True
                         self.textAcknowledged = True
                         self.idleModeTimeStarted = time.time()
                     elif (self.idleModeTimeElapsed < self.idleModeDuration):
-                        print("In IDLE MODE: ", str(self.idleModeTimeElapsed))
+                        pass
+                        #print("In IDLE MODE: ", str(self.idleModeTimeElapsed))
                     elif (self.idleModeTimeElapsed >= self.idleModeDuration):
-                        print("Idle mode complete")
+                        #print("Idle mode complete")
                         self.startIdleMode = False
                         self.textAcknowledged = False
                         #self.idleModeTimeStarted = 0;
@@ -574,7 +591,7 @@ class App:
         
         self.pressureGuiUpdate();
 
-        self._job = self.top.after(500,self.pressureDisplayPage)
+        self._job = self.top.after(self.refreshRate,self.pressureDisplayPage)
 
     def pressureGuiUpdateCalibration(self):
         self.currentPressure = self.getNewData()
@@ -590,17 +607,17 @@ class App:
         L_currentPressure = Label(top, text = currentPressureFormatted,font=("Helvetica", 40))
         L_currentPressure.grid(row=2,column=0,pady=15)
 
-        L_unitsCal = Label(top, text = "cm H2O", font=("Helvetica", 20))
-        L_unitsCal.grid(row=2,column=0,padx=220,pady=18,sticky=SE)
+        L_pressureUnitsCal = Label(top, text = "cm H2O", font=("Helvetica", 20))
+        L_pressureUnitsCal.grid(row=2,column=0,padx=220,pady=18,sticky=SE)
 
-        myWidgets = [self.top,self.L_oxydas,L_bcpapPressure,L_currentPressure,L_unitsCal];
+        myWidgets = [self.top,self.L_oxydas,L_bcpapPressure,L_currentPressure,L_pressureUnitsCal];
 
-        if (status == 1):
+        if (status == 0):
             for wid in myWidgets:
                 wid.config(bg=self.green)
             L_status = Label(top, text = "Cannula In",font=("Helvetica", 20))
             L_status.config(bg=self.green)
-        elif (status == 2):
+        elif (status == 1):
             for wid in myWidgets:
                 wid.config(bg=self.red)
             L_status = Label(top, text = "Low Pressure",font=("Helvetica", 20))
@@ -620,11 +637,11 @@ class App:
         self.clear()
         self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
         self.L_oxydas.config(bg="white")
-        self.L_units.config(bg="white")
+        self.L_pressureUnits.config(bg="white")
         
         self.L_pressureSet.grid(row=1, pady=20)
         self.L_pressureSetVal.grid(row=2,column=0,pady=40)
-        self.L_units.grid(row=2,column=0,padx=220,pady=45,sticky=E)
+        self.L_pressureUnits.grid(row=2,column=0,padx=220,pady=45,sticky=E)
         self.B_pressureSet.grid(row=3,pady=30)
         #print("did this")
 
@@ -640,10 +657,13 @@ class App:
             elif (numDigits == 0):
                 self.newPressureDigit= self.numWriter()
                 self.setPressure = "{}{}".format(self.setPressure, self.newPressureDigit)
+                self.setPressureNum = int(self.setPressure)
+                #print(self.setPressure)
+                self.highPressureLim = self.setPressureNum + self.alarmThreshold
+                self.setLowPressureAlertThreshold(self.setPressureNum)
                 self.L_pressureSetVal.config(text = self.setPressure)
                 if (self.newPressureDigit != "1"):
                     self.pressureIsSet = True
-                    self.pressureReset = False
                     #print('Pressure is set!')
                 else:
                     pass
@@ -656,14 +676,71 @@ class App:
                 else:
                     self.pressureIsSet = True
                     self.setPressure = "{}{}".format(self.setPressure, self.newPressureDigit)
+                    self.setPressureNum = int(self.setPressure)
+                    #print(self.setPressure)
+                    self.highPressureLim = self.setPressureNum + self.alarmThreshold
+                    self.setLowPressureAlertThreshold(self.setPressureNum)
                     self.L_pressureSetVal.config(text = self.setPressure)
-                    self.pressureReset = False
+                    
                     #print('Pressure is set!')
         else:
             pass
         
-        self._job = self.top.after(1000, self.calibrationPage1)
+        self._job = self.top.after(self.refreshRate, self.calibrationPage1)
+    
+    def calibrationPage2(self):
+        self.endProcess()
+        self.clear()
+        self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
+        self.L_oxydas.config(bg="white")
+        self.L_flowRateUnits.config(bg="white")
         
+        self.L_flowRateSet.grid(row=1, pady=20)
+        self.L_flowRateSetVal.grid(row=2,column=0,pady=40)
+        self.L_flowRateUnits.grid(row=2,column=0,padx=220,pady=45,sticky=E)
+        self.B_flowRateSet.grid(row=3,pady=30)
+        #print("did this")
+
+           
+        # If pressure has not been set yet
+        if (not self.flowRateIsSet):
+            numDigits = len(self.setFlowRate)
+            # Iteration 1
+            if (not self.startEnterFlowRate):
+                self.startEnterFlowRate = True
+                #print('Starting calibration')
+            # Iteration 2 - until the first number is pressed
+            elif (numDigits == 0):
+                self.newFlowRateDigit= self.numWriter()
+                self.setFlowRate = "{}{}".format(self.setFlowRate, self.newFlowRateDigit)
+                self.setFlowRateNum = int(self.setFlowRate)
+                self.openCircuitPressureAdjust(self.setFlowRateNum)
+                #print(self.offset)
+                self.L_flowRateSetVal.config(text = self.setFlowRate)
+                if (self.newFlowRateDigit != "1"):
+                    self.flowRateIsSet = True
+                    #print('Flow rate is set!')
+                else:
+                    pass
+            # If first digit entered is 1, the second digit entered is only allowed to be 0
+            else:
+                self.newFlowRateDigit = self.numWriter()
+                if (self.setFlowRate != "1" or self.newFlowRateDigit != "0"):
+                    self.newFlowRateDigit = ""
+                    #print("Only 0 allowed after 1")
+                else:
+                    self.flowRateIsSet = True
+                    self.setFlowRate = "{}{}".format(self.setFlowRate, self.newFlowRateDigit)
+                    self.setFlowRateNum = int(self.setFlowRate)
+                    self.openCircuitPressureAdjust(self.setFlowRateNum)
+                    #print(self.offset)
+                    self.L_flowRateSetVal.config(text = self.setFlowRate)
+                    #print('Pressure is set!')
+        else:
+            pass
+        
+        self._job = self.top.after(self.refreshRate, self.calibrationPage2)
+    
     def testCalibrationSet(self):
         self.endProcess()
         self.clear()
@@ -675,7 +752,7 @@ class App:
         self.L_testSet.grid(row=4,padx=40,pady=50,sticky=SW)
         self.B_testSet.grid(row=4,padx=50,pady=50,sticky=E)
 
-        self._job = self.top.after(1000,self.testCalibrationSet)
+        self._job = self.top.after(self.refreshRate,self.testCalibrationSet)
     
     def testCalibrationLow(self):
         self.endProcess()
@@ -688,7 +765,7 @@ class App:
         self.L_testLow.grid(row=4,padx=40,pady=35,sticky=SW)
         self.B_testLow.grid(row=4,padx=50,pady=35,sticky=E)
 
-        self._job = self.top.after(1000,self.testCalibrationLow)
+        self._job = self.top.after(self.refreshRate,self.testCalibrationLow)
 
     def testCalibrationHigh(self):
         self.endProcess()
@@ -701,11 +778,41 @@ class App:
         self.L_testHigh.grid(row=4,padx=40,pady=35,sticky=SW)
         self.B_testHigh.grid(row=4,padx=50,pady=35,sticky=E)
 
-        self._job = self.top.after(1000,self.testCalibrationHigh)
+        self._job = self.top.after(self.refreshRate,self.testCalibrationHigh)
+    
+    def on_closing(self):
+        GPIO.output(self.BUZZER,0)
+        self.ssh.stdin.close()
+        self.top.destroy()
+        
+    def main(self):
+        ## MAIN PROGRAM
+        # Load the environment variables with Twilio account info and phone numbers
+        load_dotenv = Dotenv(os.path.join(os.path.dirname(os.path.realpath(__file__)),".env"))
+        os.environ.update(load_dotenv)
+        # Your Account Sid and Auth Token from twilio.com/console
+        self.account_sid = os.environ['TWILIO_SID']
+        self.auth_token = os.environ['TWILIO_AUTH']
+        self.client = Client(self.account_sid, self.auth_token)
+        self.command=os.environ['COMMAND']
 
+        #self.fwding_host = "sd16-oxydas-U9ms33M2g1h05p1t2l"#os.environ['FWDING_HOST']
+        #self.local_port = "5000"#os.environ['LOCAL_PORT']
+        #self.command = "serveo.net"
+        self.ssh = subprocess.Popen([self.command], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        #print(self.ssh.communicate())
+            
+        self.top.configure(background = "white")
+        self.B_home.grid(row=0,column=0,padx=10,pady=10,sticky=NW)
+        self.B_info.grid(row=0,column=0,padx=10,pady=10,sticky=NE)
+        self.L_oxydasBig.grid(row=1,padx=230,pady=25,sticky=N)
+        self.B_calibrate.grid(row=2,column=0,padx=150,pady=25,sticky=W)
+        self.B_monitor.grid(row=2,column=0,padx=150,pady=25,sticky=E)
+        
 
 top = Tk()
 top.geometry("800x450")
 app = App(top)
-top.after(1000,app.getNewData)
+top.after(1000,app.main)
+top.protocol("WM_DELETE_WINDOW", app.on_closing)
 top.mainloop()
