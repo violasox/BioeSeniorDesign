@@ -2,6 +2,7 @@
 
 import tkinter
 from tkinter import *
+import datetime
 import time
 from time import strftime
 import random
@@ -192,6 +193,7 @@ class App:
         self.idleModeTimeStarted = 0
         self.idleModeTimeElapsed = 0
         self.refreshRate = 750
+        self.outputTextFile = "trial" + datetime.datetime.now().strftime("%y-%m-%d-%H-%M") + ".txt"
     
     def alarmActivation(self):
         self.alarmActivation = not self.alarmActivation
@@ -484,6 +486,14 @@ class App:
     def pressureGuiUpdate(self):
         self.currentPressure = self.getNewData()
         status = self.getStatus(self.currentPressure, self.lowPressureLim, self.highPressureLim)
+     
+        if (status == 0):
+            statusText = "In range"
+        elif (status == 1):
+            statusText = "Low pressure"
+        else:
+            statusText = "High pressure"
+        
 
         self.L_bcpapPressure.grid(row=1)
 
@@ -491,6 +501,8 @@ class App:
             currentPressureFormatted = str(round(self.currentPressure))
         else:
             currentPressureFormatted = str(round(self.currentPressure,1))
+        timePressureMeasured = time.time() - self.start
+        self.file.write("\n" + str("{:.3f}".format(timePressureMeasured)) + "\t" + "Current pressure measured: " + "\t" + currentPressureFormatted + "\t" + statusText)
         L_currentPressure = Label(top, text = currentPressureFormatted,font=("Helvetica", 85))
         L_currentPressure.grid(row=2,column=0,pady=10)
 
@@ -590,7 +602,7 @@ class App:
         self.B_activate.grid(row=4,pady=20)
         
         self.pressureGuiUpdate();
-
+        
         self._job = self.top.after(self.refreshRate,self.pressureDisplayPage)
 
     def pressureGuiUpdateCalibration(self):
@@ -631,7 +643,7 @@ class App:
         L_status.grid_remove()
         L_status.grid(row=3)
     
-
+    # water pressure
     def calibrationPage1(self):
         self.endProcess()
         self.clear()
@@ -664,6 +676,8 @@ class App:
                 self.L_pressureSetVal.config(text = self.setPressure)
                 if (self.newPressureDigit != "1"):
                     self.pressureIsSet = True
+                    timePressureSet = time.time() - self.start
+                    self.file.write("\n" + str("{:.3f}".format(timePressureSet)) + "\t" + "CPAP pressure set to: " + "\t" + self.setPressure)
                     #print('Pressure is set!')
                 else:
                     pass
@@ -675,6 +689,8 @@ class App:
                     #print("Only 0 allowed after 1")
                 else:
                     self.pressureIsSet = True
+                    timePressureSet = time.time() - self.start
+                    self.file.write("\n" + str("{:.3f}".format(timePressureSet)) + "\t" + "CPAP pressure set to: " + "\t" + self.setPressure)
                     self.setPressure = "{}{}".format(self.setPressure, self.newPressureDigit)
                     self.setPressureNum = int(self.setPressure)
                     #print(self.setPressure)
@@ -687,7 +703,8 @@ class App:
             pass
         
         self._job = self.top.after(self.refreshRate, self.calibrationPage1)
-    
+        
+    # oxygen flow rate
     def calibrationPage2(self):
         self.endProcess()
         self.clear()
@@ -719,6 +736,8 @@ class App:
                 self.L_flowRateSetVal.config(text = self.setFlowRate)
                 if (self.newFlowRateDigit != "1"):
                     self.flowRateIsSet = True
+                    timeFlowRateSet = time.time() - self.start
+                    self.file.write("\n" + str("{:.3f}".format(timeFlowRateSet)) + "\t" + "Oxygen flow rate set to: " + "\t" + self.setFlowRate)
                     #print('Flow rate is set!')
                 else:
                     pass
@@ -730,6 +749,8 @@ class App:
                     #print("Only 0 allowed after 1")
                 else:
                     self.flowRateIsSet = True
+                    timeFlowRateSet = time.time() - self.start
+                    self.file.write("\n" + str("{:.3f}".format(timeFlowRateSet)) + "\t" + "Oxygen flow rate set to: " + "\t" + self.setFlowRate)
                     self.setFlowRate = "{}{}".format(self.setFlowRate, self.newFlowRateDigit)
                     self.setFlowRateNum = int(self.setFlowRate)
                     self.openCircuitPressureAdjust(self.setFlowRateNum)
@@ -760,10 +781,11 @@ class App:
         self.L_oxydas.grid(row=0,padx=310,pady=25,sticky=N)
 
         self.pressureGuiUpdateCalibration();
-
+        
         self.C_test.grid(row=4,pady=0,sticky=S)
         self.L_testLow.grid(row=4,padx=40,pady=35,sticky=SW)
         self.B_testLow.grid(row=4,padx=50,pady=35,sticky=E)
+        
 
         self._job = self.top.after(self.refreshRate,self.testCalibrationLow)
 
@@ -784,6 +806,7 @@ class App:
         GPIO.output(self.BUZZER,0)
         self.ssh.stdin.close()
         self.top.destroy()
+        self.file.close()
         
     def main(self):
         ## MAIN PROGRAM
@@ -808,6 +831,9 @@ class App:
         self.L_oxydasBig.grid(row=1,padx=230,pady=25,sticky=N)
         self.B_calibrate.grid(row=2,column=0,padx=150,pady=25,sticky=W)
         self.B_monitor.grid(row=2,column=0,padx=150,pady=25,sticky=E)
+        
+        self.file = open(self.outputTextFile,"w")
+        self.start = time.time()
         
 
 top = Tk()
